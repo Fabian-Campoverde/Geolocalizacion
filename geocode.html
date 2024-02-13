@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autocompletado de Direcciones en Perú</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.6.0/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <h1>Autocompletado de Direcciones en Perú</h1>
+    <label for="departmentSelect">Departamento:</label>
+    <select id="departmentSelect" class="form-control">
+        <option value="">Seleccionar Departamento</option>
+        <!-- Aquí se agregarán los departamentos del Perú -->
+    </select>
+    <label for="addressInput">Dirección:</label>
+    <input type="text" id="addressInput" class="form-control" placeholder="Ingrese una dirección">
+    <label for="provinceInput">Provincia:</label>
+    <input type="text" id="provinceInput" class="form-control" disabled>
+    <label for="districtInput">Distrito:</label>
+    <input type="text" id="districtInput" class="form-control" disabled>
+    <label for="zoneInput">Zona:</label>
+    <input type="text" id="zoneInput" class="form-control" disabled>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        let timerId;
+
+        // Función para obtener la lista de departamentos del Perú
+        function getPeruDepartments() {
+            return axios.get('https://deperu.com/api/rest/regionesPeru.json')
+                .then(response => response.data.regiones)
+                .catch(error => console.error('Error al obtener la lista de departamentos:', error));
+        }
+
+        // Función para obtener los detalles de la dirección
+        function getAddressDetails(address, countryCode) {
+            const appId = 'l4GHmSy7nWCaRDXIRY3i'; // Reemplaza 'TU_APP_ID' por tu ID de la aplicación HERE
+            const apiKey = 'EfweUysZQG7Djjkk4rjwaipL155SjAfLC2sCc49VUqo'; // Reemplaza 'TU_API_KEY' por tu clave API de HERE
+            const url = `https://geocode.search.hereapi.com/v1/geocode?q=${address}&countryCode=${countryCode}&apiKey=${apiKey}&appId=${appId}`;
+            return axios.get(url)
+                .then(response => response.data)
+                .catch(error => console.error('Error al obtener los detalles de la dirección:', error));
+        }
+
+        // Función para actualizar los campos de provincia, distrito y zona
+        function updateAddressFields(components) {
+            const department = components.county || 'No disponible';
+            const province = components.state || 'No disponible';
+            const district = components.city || 'No disponible';
+            const zone = components.suburb || components.village || components.hamlet || components.neighbourhood || 'No disponible';
+
+            document.getElementById('provinceInput').value = province;
+            document.getElementById('districtInput').value = district;
+            document.getElementById('zoneInput').value = zone;
+        }
+
+        // Función para manejar cambios en el select de departamentos
+        function handleDepartmentChange() {
+            const selectedDepartment = document.getElementById('departmentSelect').value;
+
+            // Limpiar los campos si no se ha seleccionado un departamento o si el campo de dirección está vacío
+            if (selectedDepartment === '' || document.getElementById('addressInput').value.trim() === '') {
+                document.getElementById('provinceInput').value = '';
+                document.getElementById('districtInput').value = '';
+                document.getElementById('zoneInput').value = '';
+                return;
+            }
+
+            // Obtener la dirección ingresada por el usuario
+            const address = document.getElementById('addressInput').value.trim();
+            const countryCode = 'PE';
+
+            // Cancelar el temporizador si está activo
+            clearTimeout(timerId);
+
+            // Configurar un temporizador para realizar la búsqueda después de 3 segundos
+            timerId = setTimeout(() => {
+                // Obtener los detalles de la dirección
+                getAddressDetails(address, selectedDepartment)
+                    .then(data => {
+                        if (data && data.items && data.items.length > 0) {
+                            const components = data.items[0].address;
+                            updateAddressFields(components);
+                        } else {
+                            console.error('No se encontraron resultados');
+                        }
+                    })
+                    .catch(error => console.error('Error al obtener los detalles de la dirección:', error));
+            }, 3000);
+        }
+
+        // Función para inicializar la página
+        async function initializePage() {
+            // Obtener la lista de departamentos del Perú y agregarlos al select
+            const departments = await getPeruDepartments();
+            const departmentSelect = document.getElementById('departmentSelect');
+            departments.forEach(department => {
+                const option = document.createElement('option');
+                option.value = department.slug;
+                option.textContent = department.nombre;
+                departmentSelect.appendChild(option);
+            });
+
+            // Manejar cambios en el select de departamentos
+            departmentSelect.addEventListener('change', handleDepartmentChange);
+
+            // Manejar cambios en el input de dirección
+            const addressInput = document.getElementById('addressInput');
+            addressInput.addEventListener('input', handleDepartmentChange);
+        }
+
+        // Llamar a la función de inicialización cuando se carga la página
+        window.onload = initializePage;
+    </script>
+</body>
+</html>
